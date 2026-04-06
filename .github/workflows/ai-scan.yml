@@ -31,14 +31,12 @@ jobs:
       # ── Run the scanner ───────────────────────────────────────────────────
       - name: Scan for AI tools (JSON)
         run: |
-          cd connector_hub   # adjust if scanner lives at repo root
           python scanner.py "${{ github.workspace }}" \
             --format json \
             --output /tmp/ai-scan-current.json
 
       - name: Scan for AI tools (Markdown)
         run: |
-          cd connector_hub
           python scanner.py "${{ github.workspace }}" \
             --format markdown \
             --output /tmp/ai-scan-report.md
@@ -80,7 +78,6 @@ jobs:
       - name: Check for new tools vs baseline
         if: github.event_name == 'pull_request'
         run: |
-          cd connector_hub
           if [ -f baseline/ai-scan-baseline.json ]; then
             python scanner.py "${{ github.workspace }}" \
               --format json \
@@ -96,15 +93,15 @@ jobs:
       - name: Update baseline
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         run: |
-          mkdir -p connector_hub/baseline
-          cp /tmp/ai-scan-current.json connector_hub/baseline/ai-scan-baseline.json
+          mkdir -p baseline
+          cp /tmp/ai-scan-current.json baseline/ai-scan-baseline.json
 
       - name: Commit updated baseline
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update AI connector baseline [skip ci]"
-          file_pattern: "connector_hub/baseline/ai-scan-baseline.json"
+          file_pattern: "baseline/ai-scan-baseline.json"
 
       # ── Upload report as artifact ─────────────────────────────────────────
       - name: Upload report artifact
