@@ -29,17 +29,29 @@ jobs:
           python-version: "3.11"
 
       # ── Run the scanner ───────────────────────────────────────────────────
-      - name: Scan for AI tools (JSON)
+      - name: Scan for AI tools
         run: |
           python scanner.py "${{ github.workspace }}" \
             --format json \
             --output /tmp/ai-scan-current.json
-
-      - name: Scan for AI tools (Markdown)
-        run: |
           python scanner.py "${{ github.workspace }}" \
             --format markdown \
             --output /tmp/ai-scan-report.md
+
+      - name: Print scan results
+        run: |
+          echo "::group::AI Tools Detected"
+          python scanner.py "${{ github.workspace }}"
+          echo "::endgroup::"
+
+          echo "::group::Full Markdown Report"
+          cat /tmp/ai-scan-report.md
+          echo "::endgroup::"
+
+          # Surface the summary counts as job annotations
+          TOOL_COUNT=$(python -c "import json; d=json.load(open('/tmp/ai-scan-current.json')); print(d['tool_count'])")
+          SIGNAL_COUNT=$(python -c "import json; d=json.load(open('/tmp/ai-scan-current.json')); print(d['signal_count'])")
+          echo "::notice::AI Connector Hub: ${TOOL_COUNT} tool(s) detected across ${SIGNAL_COUNT} signal(s)"
 
       # ── Post report as PR comment ─────────────────────────────────────────
       - name: Comment on PR
