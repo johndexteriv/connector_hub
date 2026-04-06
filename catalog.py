@@ -346,6 +346,27 @@ CATALOG = {
         "urls": ["api.wandb.ai"],
         "config_files": [],
     },
+    "groundcover": {
+        "category": "Observability",
+        "label": "groundcover",
+        "packages": ["@groundcover/browser"],
+        "imports": ["@groundcover/browser", "groundcover"],
+        "env_keys": [
+            "GROUNDCOVER_API_KEY",
+            "GC_ENV_NAME",
+            "GC_DOMAIN",
+            "TF_VAR_groundcover_api_key",
+        ],
+        "urls": [
+            "api.groundcover.com",
+            "app.groundcover.com",
+            "groundcover.com/install",
+            "helm.groundcover.com",
+            "grcv.io",
+            "groundcover-sensor.groundcover.svc",
+        ],
+        "config_files": [],
+    },
 
     # ── No-code / Workflow Builders ───────────────────────────────────────────
     "flowise": {
