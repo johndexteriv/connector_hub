@@ -46,6 +46,7 @@ def to_json(detections: list[Detection], scan_root: str) -> str:
         "scanned_at": datetime.now(timezone.utc).isoformat(),
         "scanned_path": scan_root,
         "tool_count": len(summary),
+        "signal_count": len(detections),
         "tools": list(summary.values()),
     }
     return json.dumps(payload, indent=2)
