@@ -1,0 +1,117 @@
+name: AI Connector Hub Scan
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  # Weekly full scan to catch drift (e.g. a tool added via a config change)
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+jobs:
+  scan:
+    name: Detect AI Tools
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write        # to commit the baseline
+      pull-requests: write   # to post PR comments
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── Run the scanner ───────────────────────────────────────────────────
+      - name: Scan for AI tools (JSON)
+        run: |
+          cd connector_hub   # adjust if scanner lives at repo root
+          python scanner.py "${{ github.workspace }}" \
+            --format json \
+            --output /tmp/ai-scan-current.json
+
+      - name: Scan for AI tools (Markdown)
+        run: |
+          cd connector_hub
+          python scanner.py "${{ github.workspace }}" \
+            --format markdown \
+            --output /tmp/ai-scan-report.md
+
+      # ── Post report as PR comment ─────────────────────────────────────────
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/ai-scan-report.md', 'utf8');
+
+            // Delete previous bot comments from this workflow
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments.data) {
+              if (c.user.type === 'Bot' && c.body.includes('AI Connector Hub')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: report,
+            });
+
+      # ── Baseline drift detection ──────────────────────────────────────────
+      # On PRs: warn if a new AI tool appears that wasn't in the committed baseline.
+      - name: Check for new tools vs baseline
+        if: github.event_name == 'pull_request'
+        run: |
+          cd connector_hub
+          if [ -f baseline/ai-scan-baseline.json ]; then
+            python scanner.py "${{ github.workspace }}" \
+              --format json \
+              --fail-on-new baseline/ai-scan-baseline.json || {
+                echo "::warning::New AI tools detected in this PR — review the scan report."
+                exit 0   # warn, don't block; change to `exit 1` to enforce
+              }
+          else
+            echo "No baseline found — skipping drift check."
+          fi
+
+      # ── Update committed baseline on main ────────────────────────────────
+      - name: Update baseline
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          mkdir -p connector_hub/baseline
+          cp /tmp/ai-scan-current.json connector_hub/baseline/ai-scan-baseline.json
+
+      - name: Commit updated baseline
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update AI connector baseline [skip ci]"
+          file_pattern: "connector_hub/baseline/ai-scan-baseline.json"
+
+      # ── Upload report as artifact ─────────────────────────────────────────
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-scan-report
+          path: |
+            /tmp/ai-scan-report.md
+            /tmp/ai-scan-current.json
+          retention-days: 30
